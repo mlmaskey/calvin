@@ -1,6 +1,5 @@
 import os
 import datetime
-
 import json
 import csv
 import pandas as pd
@@ -90,6 +89,9 @@ def postprocess(df, model, resultdir=None, annual=False):
   F,S,E,SV,SC = {}, {}, {}, {}, {}
   D_up,D_lo,D_node = {}, {}, {}
   EOP_storage = {}
+  valFobj = {} # for storing objective function value
+  valTarget = {} # for storing target demand
+  valCost = {} # for storing unit cost
 
   links = df.values
   nodes = pd.unique(df[['i','j']].values.ravel()).tolist()
@@ -142,7 +144,11 @@ def postprocess(df, model, resultdir=None, annual=False):
     # open question: what to do about duals on pumping links? Is this handled?
     dict_insert(D_up, key, t1, d1, 'last')
     dict_insert(D_lo, key, t1, d2, 'first')
-
+    unit_cost = float(link[3])
+    dict_insert(valFobj, key, t1, v*unit_cost, 'sum')
+    dict_insert(valCost, key, t1, unit_cost, 'first') 
+    ub = float(link[6])
+    dict_insert(valTarget, key, t1, ub, 'first')
 
   # get dual values for nodes (mass balance)
   for node in nodes:
@@ -171,7 +177,8 @@ def postprocess(df, model, resultdir=None, annual=False):
   things_to_save = [(F, 'flow'), (S, 'storage'), (D_up, 'dual_upper'), 
                     (D_lo, 'dual_lower'), (D_node, 'dual_node'),
                     (E,'evaporation'), (SV,'shortage_volume'),
-                    (SC,'shortage_cost')]
+                    (SC,'shortage_cost'), (valFobj,'ObjectiveValue'),
+                    (valCost,'unitCost'), (valTarget, 'TargetValue')]
 
   for data,name in things_to_save:
     save_dict_as_csv(data, resultdir + '/' + name + '.csv', mode)
